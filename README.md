@@ -30,7 +30,8 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 /deploy       — deploy resources to Camunda
 /start        — start a process instance
 /status       — check instance/incident status
-/view-process — visualize BPMN, DMN, or Form files
+/view-process       — visualize BPMN, DMN, or Form files
+/setup-environment  — install and start Camunda 8 Run locally
 ```
 
 ## What's in the Kit
@@ -38,7 +39,7 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 ```
 .claude-plugin/plugin.json  — plugin manifest
 .mcp.json                   — auto-configures Camunda Docs MCP
-.claude/skills/             — 10 skills (slash commands)
+.claude/skills/             — 11 skills (slash commands)
 docs/
   camunda-dev-guide.md      — core Camunda 8 patterns (BPMN, connectors, DMN, forms, CLI)
   env-c8run.md              — C8 Run (local) config
