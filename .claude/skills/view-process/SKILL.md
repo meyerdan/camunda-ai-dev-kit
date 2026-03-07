@@ -1,15 +1,13 @@
 ---
 name: view-process
-description: Launch a bpmn-js viewer to visually inspect a BPMN diagram in the browser.
-argument-hint: "[bpmn file]"
+description: Launch a visual viewer for BPMN, DMN, or Form files in the browser.
+argument-hint: "[.bpmn, .dmn, or .form file]"
 ---
 
-Launch a bpmn-js viewer to inspect the BPMN diagram visually.
+Launch the Camunda file viewer to visually inspect a BPMN process, DMN decision table, or Camunda Form.
 
 $ARGUMENTS
 
-If tools/bpmn-viewer/ doesn't exist, create it: an Express server + index.html using bpmn-js (from unpkg CDN) that loads a BPMN file and renders it with fit-viewport zoom and a reload button.
+Auto-detects file type from extension (.bpmn, .dmn, .form) and loads the right viewer (bpmn-js, dmn-js, or form-js).
 
-Requires express: `npm install express` (if not already installed).
-
-Start it with: node tools/bpmn-viewer/serve.js resources/<file>.bpmn
+Start it with: node tools/camunda-viewer/serve.js <file>

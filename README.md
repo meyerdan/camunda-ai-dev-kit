@@ -30,7 +30,7 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 /deploy       — deploy resources to Camunda
 /start        — start a process instance
 /status       — check instance/incident status
-/view-process — visualize a BPMN diagram
+/view-process — visualize BPMN, DMN, or Form files
 ```
 
 ## What's in the Kit
@@ -46,8 +46,8 @@ docs/
   lang-nodejs.md            — Node.js worker SDK
   lang-java.md              — Java/Spring Boot worker SDK
 templates/CLAUDE.md         — project CLAUDE.md template
-tools/bpmn-viewer/          — local BPMN diagram viewer (Express + bpmn-js)
-examples/expense-approval/  — complete working example
+tools/camunda-viewer/       — local file viewer (BPMN, DMN, Forms)
+examples/                   — 4 working examples (expense-approval, order-fulfillment, batch-processor, hiring-pipeline)
 ```
 
 ## Design Principles

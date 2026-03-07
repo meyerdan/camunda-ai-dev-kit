@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Camunda Viewer</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #canvas { width: 100vw; height: calc(100vh - 40px); }
+    #toolbar { height: 40px; display: flex; align-items: center; padding: 0 12px; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+    #toolbar span { margin-left: 12px; color: #666; font-size: 13px; }
+    button { margin-right: 8px; padding: 4px 12px; cursor: pointer; }
+    #canvas .fjs-container { max-width: 800px; margin: 24px auto; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button onclick="load()">Reload</button>
+    <button id="fitBtn" onclick="fitViewport()">Fit</button>
+    <span id="filename"></span>
+  </div>
+  <div id="canvas"></div>
+
+  <script>
+    let viewer = null;
+    let fileType = null;
+
+    async function init() {
+      const meta = await (await fetch('/type')).json();
+      fileType = meta.type;
+      document.getElementById('filename').textContent = meta.name;
+      document.title = meta.type.toUpperCase() + ' Viewer';
+
+      if (fileType === 'form') document.getElementById('fitBtn').style.display = 'none';
+
+      const script = document.createElement('script');
+      const libs = {
+        bpmn: 'https://unpkg.com/bpmn-js/dist/bpmn-navigated-viewer.production.min.js',
+        dmn: 'https://unpkg.com/dmn-js/dist/dmn-navigated-viewer.production.min.js',
+        form: 'https://unpkg.com/@bpmn-io/form-js-viewer/dist/form-viewer.umd.js'
+      };
+      script.src = libs[fileType];
+      script.onload = load;
+      document.head.appendChild(script);
+
+      if (fileType === 'form') {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/@bpmn-io/form-js-viewer/dist/assets/form-js.css';
+        document.head.appendChild(link);
+      }
+    }
+
+    async function load() {
+      const res = await fetch('/file');
+      const content = await res.text();
+      const container = document.getElementById('canvas');
+
+      if (fileType === 'bpmn') {
+        if (!viewer) viewer = new BpmnJS({ container });
+        await viewer.importXML(content);
+        fitViewport();
+      } else if (fileType === 'dmn') {
+        if (!viewer) viewer = new DmnJS({ container });
+        await viewer.importXML(content);
+        try {
+          const av = viewer.getActiveView();
+          if (av && av.type === 'drd') viewer.getActiveViewer().get('canvas').zoom('fit-viewport');
+        } catch (e) {}
+      } else if (fileType === 'form') {
+        container.innerHTML = '';
+        viewer = new FormViewer.Form({ container });
+        await viewer.importSchema(JSON.parse(content));
+      }
+    }
+
+    function fitViewport() {
+      if (!viewer) return;
+      try {
+        if (fileType === 'bpmn') viewer.get('canvas').zoom('fit-viewport');
+        else if (fileType === 'dmn') viewer.getActiveViewer().get('canvas').zoom('fit-viewport');
+      } catch (e) {}
+    }
+
+    init();
+  </script>
+</body>
+</html>
