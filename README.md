@@ -38,7 +38,7 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 ```
 .claude-plugin/plugin.json  — plugin manifest
 .mcp.json                   — auto-configures Camunda Docs MCP
-skills/                     — 9 skills (slash commands)
+.claude/skills/             — 10 skills (slash commands)
 docs/
   camunda-dev-guide.md      — core Camunda 8 patterns (BPMN, connectors, DMN, forms, CLI)
   env-c8run.md              — C8 Run (local) config
