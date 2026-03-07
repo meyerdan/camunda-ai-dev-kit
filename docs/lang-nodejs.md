@@ -1,6 +1,6 @@
 # Node.js Workers
 
-SDK: `@camunda8/sdk`
+SDK: `@camunda8/sdk` (use `^8.8.0` — 8.9.0 is not yet released)
 
 ```typescript
 import { Camunda8 } from '@camunda8/sdk';

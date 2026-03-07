@@ -4,7 +4,7 @@ description: Generate a Camunda 8 DMN decision table. Use when creating business
 argument-hint: "[decision table description]"
 ---
 
-Generate a Camunda 8 DMN decision table. See `docs/camunda-dev-guide.md` for namespace and rules (quote output strings, empty = wildcard).
+Generate a Camunda 8 DMN decision table. Find and read `camunda-dev-guide.md` for namespace and rules (quote output strings, empty = wildcard).
 
 $ARGUMENTS
 

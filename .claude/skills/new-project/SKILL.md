@@ -4,14 +4,14 @@ description: Scaffold a new Camunda 8 project with the right structure, dependen
 argument-hint: "[description, language, environment]"
 ---
 
-Read `docs/camunda-dev-guide.md` first.
+Read the Camunda dev guide from the plugin root first (find it with `find . -name camunda-dev-guide.md`).
 
 $ARGUMENTS
 
 Detect env+lang from arguments (java/spring → Java, node/ts → Node.js, saas/cloud → SaaS, local/c8run → C8 Run). If unclear, ask.
 
-1. Create: resources/, workers/ (or src/main/ for Java), docs/, tools/
-2. Copy the relevant docs from `docs/` (dev guide + env module + lang module)
-3. Generate CLAUDE.md with the project spec using `templates/CLAUDE.md` as a skeleton
-4. Init the project (package.json or pom.xml)
+1. Create: resources/, workers/ (or src/main/ for Java)
+2. Generate CLAUDE.md with the project spec
+3. Init the project (package.json with `"type": "module"` or pom.xml)
+4. For Node.js: `npm install @camunda8/sdk@^8.8.0 express`
 5. Verify c8ctl is installed: `c8 --version` (if not: `npm install @camunda8/cli -g`)

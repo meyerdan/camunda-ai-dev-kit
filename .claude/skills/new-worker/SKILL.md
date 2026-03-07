@@ -5,8 +5,8 @@ argument-hint: "[worker description]"
 ---
 
 Generate a job worker. Detect language:
-- pom.xml → Java: use `@JobWorker(type = "...")` pattern from `docs/lang-java.md`
-- package.json → Node.js: use `zeebe.createWorker()` pattern from `docs/lang-nodejs.md`
+- pom.xml → Java: use `@JobWorker(type = "...")` pattern from `lang-java.md`
+- package.json → Node.js: use `zeebe.createWorker()` pattern from `lang-nodejs.md`
 
 The taskType must exactly match the `type` in `<zeebe:taskDefinition>` in the BPMN. Case-sensitive.
 

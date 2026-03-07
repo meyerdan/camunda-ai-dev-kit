@@ -1,6 +1,9 @@
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
+import express from 'express';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const bpmnFile = process.argv[2];
 if (!bpmnFile) {
@@ -8,8 +11,8 @@ if (!bpmnFile) {
   process.exit(1);
 }
 
-const bpmnPath = path.resolve(bpmnFile);
-if (!fs.existsSync(bpmnPath)) {
+const bpmnPath = resolve(bpmnFile);
+if (!existsSync(bpmnPath)) {
   console.error(`File not found: ${bpmnPath}`);
   process.exit(1);
 }
@@ -18,11 +21,11 @@ const app = express();
 const PORT = 3333;
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(join(__dirname, 'index.html'));
 });
 
 app.get('/bpmn', (req, res) => {
-  res.type('application/xml').send(fs.readFileSync(bpmnPath, 'utf-8'));
+  res.type('application/xml').send(readFileSync(bpmnPath, 'utf-8'));
 });
 
 app.listen(PORT, () => {

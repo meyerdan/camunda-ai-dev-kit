@@ -178,7 +178,8 @@ Secrets (API keys, tokens) are referenced as `{{secrets.MY_SECRET}}` in input va
 ## Camunda Forms
 
 - File extension: `.form`
-- Schema: `"type": "default"`, include `"schemaVersion"` (check current version via Docs MCP — it increments with releases, e.g., 16 for 8.5, 18 for 8.7+)
+- Schema: `"type": "default"`, `"schemaVersion": 18` (for Camunda 8.7+)
+- Always set `"executionPlatform": "Camunda Cloud"` and `"executionPlatformVersion": "8.9.0"`
 - The `id` field links to `<zeebe:formDefinition formId="..."/>` in the BPMN
 - Form `key` values map directly to process variables
 - Deploy `.form` files alongside BPMN in the same deployment request

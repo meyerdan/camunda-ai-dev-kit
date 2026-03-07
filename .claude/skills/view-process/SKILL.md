@@ -10,4 +10,6 @@ $ARGUMENTS
 
 If tools/bpmn-viewer/ doesn't exist, create it: an Express server + index.html using bpmn-js (from unpkg CDN) that loads a BPMN file and renders it with fit-viewport zoom and a reload button.
 
+Requires express: `npm install express` (if not already installed).
+
 Start it with: node tools/bpmn-viewer/serve.js resources/<file>.bpmn
