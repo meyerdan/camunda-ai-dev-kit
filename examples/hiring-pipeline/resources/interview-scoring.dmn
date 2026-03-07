@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+             id="Definitions_InterviewScoring"
+             name="Interview Scoring"
+             namespace="http://camunda.org/schema/1.0/dmn"
+             modeler:executionPlatform="Camunda Cloud"
+             modeler:executionPlatformVersion="8.9.0">
+  <decision id="interview-scoring" name="Interview Scoring">
+    <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
+      <input id="Input_1" label="Interview Score">
+        <inputExpression id="InputExpression_1" typeRef="number">
+          <text>interviewScore</text>
+        </inputExpression>
+      </input>
+      <output id="Output_1" label="Interview Result" name="interviewResult" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>Excellent interview - strong hire</description>
+        <inputEntry id="UnaryTests_1">
+          <text>&gt;= 80</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1">
+          <text>"STRONG_HIRE"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <description>Good interview - hire</description>
+        <inputEntry id="UnaryTests_2">
+          <text>&gt;= 60</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_2">
+          <text>"HIRE"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <description>Below threshold - no hire</description>
+        <inputEntry id="UnaryTests_3">
+          <text>&lt; 60</text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_3">
+          <text>"NO_HIRE"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="interview-scoring">
+        <dc:Bounds height="80" width="180" x="160" y="100"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

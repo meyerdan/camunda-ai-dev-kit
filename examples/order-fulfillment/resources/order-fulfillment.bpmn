@@ -58,7 +58,7 @@
       <bpmn:incoming>Flow_GatewayToTimer</bpmn:incoming>
       <bpmn:outgoing>Flow_TimeoutToCancelOrder</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDef_PaymentTimeout">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT7D</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT7D"</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:intermediateCatchEvent>
 

@@ -23,7 +23,7 @@
     <!-- Resume Screening (Business Rule Task / DMN) -->
     <bpmn:businessRuleTask id="Activity_resume_screening" name="Screen Resume">
       <bpmn:extensionElements>
-        <zeebe:calledDecision decisionId="resume-screening" resultVariable="resumeScore"/>
+        <zeebe:calledDecision decisionId="resume-screening" resultVariable="qualified"/>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_start_to_screening</bpmn:incoming>
       <bpmn:outgoing>Flow_screening_to_gw_qualified</bpmn:outgoing>
@@ -99,7 +99,7 @@
     <bpmn:boundaryEvent id="BoundaryEvent_reminder" name="3 Day Reminder" cancelActivity="false" attachedToRef="Activity_hiring_decision">
       <bpmn:outgoing>Flow_reminder_to_end</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDefinition_reminder">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT3D</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT3D"</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
 
@@ -147,10 +147,10 @@
     <bpmn:sequenceFlow id="Flow_start_to_screening" sourceRef="StartEvent_1" targetRef="Activity_resume_screening"/>
     <bpmn:sequenceFlow id="Flow_screening_to_gw_qualified" sourceRef="Activity_resume_screening" targetRef="Gateway_qualified"/>
     <bpmn:sequenceFlow id="Flow_qualified_yes" name="Yes (score &#62;= 70)" sourceRef="Gateway_qualified" targetRef="Activity_interview_process">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=resumeScore &gt;= 70</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=qualified = true</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_qualified_no" name="No" sourceRef="Gateway_qualified" targetRef="Activity_send_rejection_screening">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=resumeScore &lt; 70</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=qualified = false</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_rejection_screening_to_end" sourceRef="Activity_send_rejection_screening" targetRef="EndEvent_rejected_screening"/>
     <bpmn:sequenceFlow id="Flow_interview_to_decision" sourceRef="Activity_interview_process" targetRef="Activity_hiring_decision"/>

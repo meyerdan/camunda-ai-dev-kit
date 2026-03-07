@@ -89,6 +89,12 @@ All FEEL expressions must be prefixed with `=`:
 <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=riskLevel = "HIGH"</bpmn:conditionExpression>
 ```
 
+**Timer durations are also FEEL expressions** — they must use the `="..."` format:
+```xml
+<bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT7D"</bpmn:timeDuration>
+```
+Plain `PT7D` without the FEEL prefix will be rejected as an invalid duration format.
+
 ### Wildcard Error Catching
 
 An empty `<bpmn:errorEventDefinition/>` on a boundary event catches ANY error (wildcard). To catch specific errors, add `errorRef`.
@@ -165,6 +171,7 @@ Secrets (API keys, tokens) are referenced as `{{secrets.MY_SECRET}}` in input va
 - Empty `<text></text>` in input entries = **wildcard** (matches anything)
 - List matching for strings: `"US","GB","DE"` (comma-separated, each quoted)
 - Reference from BPMN: `<zeebe:calledDecision decisionId="..." resultVariable="..."/>`
+- **`resultVariable` overwrites**: The DMN output is stored in the variable named by `resultVariable`. If this matches an existing process variable (e.g., an input), it **overwrites** it. Use a distinct name (e.g., `qualified` not `resumeScore`) to avoid clobbering input data.
 
 ---
 

@@ -85,7 +85,7 @@
     <bpmn:boundaryEvent id="BoundaryEvent_ProgressTimer" name="Progress Check (1h)" cancelActivity="false" attachedToRef="SubProcess_ProcessItems">
       <bpmn:outgoing>Flow_timer_to_notify</bpmn:outgoing>
       <bpmn:timerEventDefinition id="TimerEventDef_Progress">
-        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">="PT1H"</bpmn:timeDuration>
       </bpmn:timerEventDefinition>
     </bpmn:boundaryEvent>
 
