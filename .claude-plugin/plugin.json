@@ -6,8 +6,8 @@
     "name": "Camunda",
     "url": "https://camunda.com"
   },
-  "homepage": "https://github.com/camunda/camunda-ai-dev-kit",
-  "repository": "https://github.com/camunda/camunda-ai-dev-kit",
+  "homepage": "https://github.com/meyerdan/camunda-ai-dev-kit",
+  "repository": "https://github.com/meyerdan/camunda-ai-dev-kit",
   "license": "Apache-2.0",
   "keywords": ["camunda", "bpmn", "process-automation", "zeebe", "workflow"]
 }
