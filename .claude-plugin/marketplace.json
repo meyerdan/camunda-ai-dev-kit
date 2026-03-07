@@ -1,16 +1,30 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "camunda-ai-dev-kit",
+  "version": "1.0.0",
+  "description": "Camunda 8 development toolkit for AI coding agents",
   "owner": {
     "name": "Camunda",
-    "url": "https://camunda.com"
+    "email": "community@camunda.com"
   },
   "plugins": [
     {
       "name": "camunda-ai-dev-kit",
-      "source": ".",
+      "source": "./",
       "description": "Camunda 8 development toolkit — BPMN, DMN, forms, workers, and deployment via AI-powered skills",
-      "version": "1.0.0"
+      "version": "1.0.0",
+      "skills": [
+        "./.claude/skills/new-project",
+        "./.claude/skills/new-process",
+        "./.claude/skills/new-dmn",
+        "./.claude/skills/new-form",
+        "./.claude/skills/new-worker",
+        "./.claude/skills/deploy",
+        "./.claude/skills/start",
+        "./.claude/skills/status",
+        "./.claude/skills/view-process",
+        "./.claude/skills/bpmn-best-practices"
+      ]
     }
   ]
 }
