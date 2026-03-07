@@ -1,0 +1,15 @@
+{
+  "name": "camunda-ai-dev-kit",
+  "owner": {
+    "name": "Camunda",
+    "url": "https://camunda.com"
+  },
+  "plugins": [
+    {
+      "name": "camunda-ai-dev-kit",
+      "source": ".",
+      "description": "Camunda 8 development toolkit — BPMN, DMN, forms, workers, and deployment via AI-powered skills",
+      "version": "1.0.0"
+    }
+  ]
+}

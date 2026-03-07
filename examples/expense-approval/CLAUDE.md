@@ -1,9 +1,9 @@
 # Expense Approval Process
 
 ## Config
-- Environment: C8 Run (local) → see docs/env-c8run.md
-- Language: Node.js → see docs/lang-nodejs.md
-- Dev patterns: see docs/camunda-dev-guide.md
+- Environment: C8 Run (local)
+- Language: Node.js
+- Dev patterns, env config, and SDK docs are provided by the camunda-ai-dev-kit plugin
 
 ## Process
 Employee submits expense → manager reviews (approve/reject) → if approved and amount > 1000 then finance approval needed → send notification → done.

@@ -1,0 +1,304 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.32.0"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:process id="batch-processor" name="Batch Processor" isExecutable="true">
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Batch Received">
+      <bpmn:outgoing>Flow_start_to_validate</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Validate Batch -->
+    <bpmn:serviceTask id="Task_ValidateBatch" name="Validate Batch">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="validate-batch" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_start_to_validate</bpmn:incoming>
+      <bpmn:outgoing>Flow_validate_to_subprocess</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Multi-Instance Subprocess -->
+    <bpmn:subProcess id="SubProcess_ProcessItems" name="Process Items">
+      <bpmn:incoming>Flow_validate_to_subprocess</bpmn:incoming>
+      <bpmn:outgoing>Flow_subprocess_to_aggregate</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=items" inputElement="item" outputCollection="results" outputElement="=itemResult" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+
+      <!-- Subprocess Start -->
+      <bpmn:startEvent id="SubStart_1" name="Item Start">
+        <bpmn:outgoing>Flow_substart_to_process</bpmn:outgoing>
+      </bpmn:startEvent>
+
+      <!-- Process Item Service Task -->
+      <bpmn:serviceTask id="Task_ProcessItem" name="Process Item">
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="process-item" retries="3" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_substart_to_process</bpmn:incoming>
+        <bpmn:outgoing>Flow_process_to_subend</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <!-- Error Boundary Event on Process Item -->
+      <bpmn:boundaryEvent id="BoundaryEvent_ItemError" name="Item Failure" attachedToRef="Task_ProcessItem">
+        <bpmn:outgoing>Flow_error_to_handlefailure</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="ErrorEventDef_ItemError" />
+      </bpmn:boundaryEvent>
+
+      <!-- Handle Item Failure -->
+      <bpmn:serviceTask id="Task_HandleItemFailure" name="Handle Item Failure">
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="handle-item-failure" retries="3" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_error_to_handlefailure</bpmn:incoming>
+        <bpmn:outgoing>Flow_handlefailure_to_subend</bpmn:outgoing>
+      </bpmn:serviceTask>
+
+      <!-- Subprocess End -->
+      <bpmn:endEvent id="SubEnd_1" name="Item Complete">
+        <bpmn:incoming>Flow_process_to_subend</bpmn:incoming>
+        <bpmn:incoming>Flow_handlefailure_to_subend</bpmn:incoming>
+      </bpmn:endEvent>
+
+      <!-- Subprocess Flows -->
+      <bpmn:sequenceFlow id="Flow_substart_to_process" sourceRef="SubStart_1" targetRef="Task_ProcessItem" />
+      <bpmn:sequenceFlow id="Flow_process_to_subend" sourceRef="Task_ProcessItem" targetRef="SubEnd_1" />
+      <bpmn:sequenceFlow id="Flow_error_to_handlefailure" sourceRef="BoundaryEvent_ItemError" targetRef="Task_HandleItemFailure" />
+      <bpmn:sequenceFlow id="Flow_handlefailure_to_subend" sourceRef="Task_HandleItemFailure" targetRef="SubEnd_1" />
+    </bpmn:subProcess>
+
+    <!-- Non-Interrupting Timer Boundary on Subprocess (Progress Notification) -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ProgressTimer" name="Progress Check (1h)" cancelActivity="false" attachedToRef="SubProcess_ProcessItems">
+      <bpmn:outgoing>Flow_timer_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDef_Progress">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Send Progress Notification -->
+    <bpmn:serviceTask id="Task_SendProgressNotification" name="Send Progress Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-progress-notification" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_timer_to_notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_notify_to_notifyend</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Notification End -->
+    <bpmn:endEvent id="EndEvent_NotificationSent" name="Notification Sent">
+      <bpmn:incoming>Flow_notify_to_notifyend</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Aggregate Results -->
+    <bpmn:serviceTask id="Task_AggregateResults" name="Aggregate Results">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="aggregate-results" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_subprocess_to_aggregate</bpmn:incoming>
+      <bpmn:outgoing>Flow_aggregate_to_report</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Send Report -->
+    <bpmn:serviceTask id="Task_SendReport" name="Send Report">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-report" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_aggregate_to_report</bpmn:incoming>
+      <bpmn:outgoing>Flow_report_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_Done" name="Batch Complete">
+      <bpmn:incoming>Flow_report_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Main Process Flows -->
+    <bpmn:sequenceFlow id="Flow_start_to_validate" sourceRef="StartEvent_1" targetRef="Task_ValidateBatch" />
+    <bpmn:sequenceFlow id="Flow_validate_to_subprocess" sourceRef="Task_ValidateBatch" targetRef="SubProcess_ProcessItems" />
+    <bpmn:sequenceFlow id="Flow_subprocess_to_aggregate" sourceRef="SubProcess_ProcessItems" targetRef="Task_AggregateResults" />
+    <bpmn:sequenceFlow id="Flow_aggregate_to_report" sourceRef="Task_AggregateResults" targetRef="Task_SendReport" />
+    <bpmn:sequenceFlow id="Flow_report_to_end" sourceRef="Task_SendReport" targetRef="EndEvent_Done" />
+    <bpmn:sequenceFlow id="Flow_timer_to_notify" sourceRef="BoundaryEvent_ProgressTimer" targetRef="Task_SendProgressNotification" />
+    <bpmn:sequenceFlow id="Flow_notify_to_notifyend" sourceRef="Task_SendProgressNotification" targetRef="EndEvent_NotificationSent" />
+
+  </bpmn:process>
+
+  <!-- BPMN Diagram Interchange -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="batch-processor">
+
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="160" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="142" y="303" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Validate Batch -->
+      <bpmndi:BPMNShape id="Task_ValidateBatch_di" bpmnElement="Task_ValidateBatch">
+        <dc:Bounds x="260" y="238" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Multi-Instance Subprocess -->
+      <bpmndi:BPMNShape id="SubProcess_ProcessItems_di" bpmnElement="SubProcess_ProcessItems" isExpanded="true">
+        <dc:Bounds x="430" y="160" width="400" height="240" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Subprocess Start -->
+      <bpmndi:BPMNShape id="SubStart_1_di" bpmnElement="SubStart_1">
+        <dc:Bounds x="462" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="455" y="303" width="51" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Process Item -->
+      <bpmndi:BPMNShape id="Task_ProcessItem_di" bpmnElement="Task_ProcessItem">
+        <dc:Bounds x="560" y="238" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Error Boundary Event -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ItemError_di" bpmnElement="BoundaryEvent_ItemError">
+        <dc:Bounds x="592" y="300" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="580" y="343" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Handle Item Failure -->
+      <bpmndi:BPMNShape id="Task_HandleItemFailure_di" bpmnElement="Task_HandleItemFailure">
+        <dc:Bounds x="660" y="328" width="100" height="56" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Subprocess End -->
+      <bpmndi:BPMNShape id="SubEnd_1_di" bpmnElement="SubEnd_1">
+        <dc:Bounds x="772" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="756" y="303" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Timer Boundary Event (Non-Interrupting) -->
+      <bpmndi:BPMNShape id="BoundaryEvent_ProgressTimer_di" bpmnElement="BoundaryEvent_ProgressTimer">
+        <dc:Bounds x="612" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="586" y="425" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Send Progress Notification -->
+      <bpmndi:BPMNShape id="Task_SendProgressNotification_di" bpmnElement="Task_SendProgressNotification">
+        <dc:Bounds x="700" y="460" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Notification End -->
+      <bpmndi:BPMNShape id="EndEvent_NotificationSent_di" bpmnElement="EndEvent_NotificationSent">
+        <dc:Bounds x="852" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="828" y="525" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Aggregate Results -->
+      <bpmndi:BPMNShape id="Task_AggregateResults_di" bpmnElement="Task_AggregateResults">
+        <dc:Bounds x="900" y="238" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Send Report -->
+      <bpmndi:BPMNShape id="Task_SendReport_di" bpmnElement="Task_SendReport">
+        <dc:Bounds x="1070" y="238" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End Event -->
+      <bpmndi:BPMNShape id="EndEvent_Done_di" bpmnElement="EndEvent_Done">
+        <dc:Bounds x="1242" y="260" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1222" y="303" width="77" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence Flows -->
+      <bpmndi:BPMNEdge id="Flow_start_to_validate_di" bpmnElement="Flow_start_to_validate">
+        <di:waypoint x="196" y="278" />
+        <di:waypoint x="260" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_validate_to_subprocess_di" bpmnElement="Flow_validate_to_subprocess">
+        <di:waypoint x="360" y="278" />
+        <di:waypoint x="430" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_substart_to_process_di" bpmnElement="Flow_substart_to_process">
+        <di:waypoint x="498" y="278" />
+        <di:waypoint x="560" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_process_to_subend_di" bpmnElement="Flow_process_to_subend">
+        <di:waypoint x="660" y="278" />
+        <di:waypoint x="772" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_error_to_handlefailure_di" bpmnElement="Flow_error_to_handlefailure">
+        <di:waypoint x="610" y="336" />
+        <di:waypoint x="610" y="356" />
+        <di:waypoint x="660" y="356" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_handlefailure_to_subend_di" bpmnElement="Flow_handlefailure_to_subend">
+        <di:waypoint x="760" y="356" />
+        <di:waypoint x="790" y="356" />
+        <di:waypoint x="790" y="296" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_subprocess_to_aggregate_di" bpmnElement="Flow_subprocess_to_aggregate">
+        <di:waypoint x="830" y="278" />
+        <di:waypoint x="900" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_aggregate_to_report_di" bpmnElement="Flow_aggregate_to_report">
+        <di:waypoint x="1000" y="278" />
+        <di:waypoint x="1070" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_report_to_end_di" bpmnElement="Flow_report_to_end">
+        <di:waypoint x="1170" y="278" />
+        <di:waypoint x="1242" y="278" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_timer_to_notify_di" bpmnElement="Flow_timer_to_notify">
+        <di:waypoint x="630" y="418" />
+        <di:waypoint x="630" y="500" />
+        <di:waypoint x="700" y="500" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_notify_to_notifyend_di" bpmnElement="Flow_notify_to_notifyend">
+        <di:waypoint x="800" y="500" />
+        <di:waypoint x="852" y="500" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

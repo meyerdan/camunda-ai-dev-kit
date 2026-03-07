@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.32.0"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:process id="interview-process" name="Interview Process" isExecutable="true">
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Interview Started">
+      <bpmn:outgoing>Flow_start_to_schedule</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Schedule Interview (Service Task) -->
+    <bpmn:serviceTask id="Activity_schedule_interview" name="Schedule Interview">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="schedule-interview" retries="3"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_start_to_schedule</bpmn:incoming>
+      <bpmn:outgoing>Flow_schedule_to_feedback</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Interviewer Feedback (User Task) -->
+    <bpmn:userTask id="Activity_interviewer_feedback" name="Interviewer Feedback">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="interviewer-feedback-form"/>
+        <zeebe:userTask/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_schedule_to_feedback</bpmn:incoming>
+      <bpmn:outgoing>Flow_feedback_to_scoring</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Interview Scoring (Business Rule Task / DMN) -->
+    <bpmn:businessRuleTask id="Activity_interview_scoring" name="Score Interview">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="interview-scoring" resultVariable="interviewScore"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_feedback_to_scoring</bpmn:incoming>
+      <bpmn:outgoing>Flow_scoring_to_end</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!-- End Event -->
+    <bpmn:endEvent id="EndEvent_1" name="Interview Completed">
+      <bpmn:incoming>Flow_scoring_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_start_to_schedule" sourceRef="StartEvent_1" targetRef="Activity_schedule_interview"/>
+    <bpmn:sequenceFlow id="Flow_schedule_to_feedback" sourceRef="Activity_schedule_interview" targetRef="Activity_interviewer_feedback"/>
+    <bpmn:sequenceFlow id="Flow_feedback_to_scoring" sourceRef="Activity_interviewer_feedback" targetRef="Activity_interview_scoring"/>
+    <bpmn:sequenceFlow id="Flow_scoring_to_end" sourceRef="Activity_interview_scoring" targetRef="EndEvent_1"/>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="interview-process">
+
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="180" y="200" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="157" y="243" width="82" height="14"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Schedule Interview -->
+      <bpmndi:BPMNShape id="Activity_schedule_interview_di" bpmnElement="Activity_schedule_interview">
+        <dc:Bounds x="280" y="178" width="100" height="80"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+
+      <!-- Interviewer Feedback -->
+      <bpmndi:BPMNShape id="Activity_interviewer_feedback_di" bpmnElement="Activity_interviewer_feedback">
+        <dc:Bounds x="450" y="178" width="100" height="80"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+
+      <!-- Interview Scoring -->
+      <bpmndi:BPMNShape id="Activity_interview_scoring_di" bpmnElement="Activity_interview_scoring">
+        <dc:Bounds x="620" y="178" width="100" height="80"/>
+        <bpmndi:BPMNLabel/>
+      </bpmndi:BPMNShape>
+
+      <!-- End Event -->
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="792" y="200" width="36" height="36"/>
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="769" y="243" width="83" height="27"/>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="Flow_start_to_schedule_di" bpmnElement="Flow_start_to_schedule">
+        <di:waypoint x="216" y="218"/>
+        <di:waypoint x="280" y="218"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_schedule_to_feedback_di" bpmnElement="Flow_schedule_to_feedback">
+        <di:waypoint x="380" y="218"/>
+        <di:waypoint x="450" y="218"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_feedback_to_scoring_di" bpmnElement="Flow_feedback_to_scoring">
+        <di:waypoint x="550" y="218"/>
+        <di:waypoint x="620" y="218"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_scoring_to_end_di" bpmnElement="Flow_scoring_to_end">
+        <di:waypoint x="720" y="218"/>
+        <di:waypoint x="792" y="218"/>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>

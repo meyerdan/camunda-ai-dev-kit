@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions
+  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+  id="Definitions_1"
+  targetNamespace="http://bpmn.io/schema/bpmn"
+  exporter="Camunda Modeler"
+  exporterVersion="5.32.0"
+  modeler:executionPlatform="Camunda Cloud"
+  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:process id="order-fulfillment" name="Order Fulfillment" isExecutable="true">
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_OrderPlaced" name="Order Placed">
+      <bpmn:outgoing>Flow_StartToReserve</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Reserve Inventory Service Task -->
+    <bpmn:serviceTask id="Task_ReserveInventory" name="Reserve Inventory">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="reserve-inventory" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_StartToReserve</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReserveToPaymentRequest</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Send Payment Request Service Task -->
+    <bpmn:serviceTask id="Task_SendPaymentRequest" name="Send Payment Request">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-payment-request" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ReserveToPaymentRequest</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentRequestToGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Event-Based Gateway: Wait for Payment or Timeout -->
+    <bpmn:eventBasedGateway id="Gateway_PaymentEvent" name="Await Payment">
+      <bpmn:incoming>Flow_PaymentRequestToGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_GatewayToPaymentMessage</bpmn:outgoing>
+      <bpmn:outgoing>Flow_GatewayToTimer</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <!-- Message Intermediate Catch Event: Payment Received -->
+    <bpmn:intermediateCatchEvent id="Event_PaymentReceived" name="Payment Received">
+      <bpmn:incoming>Flow_GatewayToPaymentMessage</bpmn:incoming>
+      <bpmn:outgoing>Flow_PaymentToShipOrder</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDef_PaymentReceived" messageRef="Message_PaymentReceived" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Timer Intermediate Catch Event: 7 Day Timeout -->
+    <bpmn:intermediateCatchEvent id="Event_PaymentTimeout" name="7 Days Timeout">
+      <bpmn:incoming>Flow_GatewayToTimer</bpmn:incoming>
+      <bpmn:outgoing>Flow_TimeoutToCancelOrder</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDef_PaymentTimeout">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Cancel Order Service Task (timeout path) -->
+    <bpmn:serviceTask id="Task_CancelOrder" name="Cancel Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cancel-order" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_TimeoutToCancelOrder</bpmn:incoming>
+      <bpmn:outgoing>Flow_CancelToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event: Order Cancelled -->
+    <bpmn:endEvent id="EndEvent_OrderCancelled" name="Order Cancelled">
+      <bpmn:incoming>Flow_CancelToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Ship Order Service Task -->
+    <bpmn:serviceTask id="Task_ShipOrder" name="Ship Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="ship-order" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_PaymentToShipOrder</bpmn:incoming>
+      <bpmn:outgoing>Flow_ShipToDeliveryWait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Error Boundary Event on Ship Order (catches any error) -->
+    <bpmn:boundaryEvent id="BoundaryEvent_ShippingError" name="Shipping Failed" attachedToRef="Task_ShipOrder">
+      <bpmn:outgoing>Flow_ShipErrorToCancelOrder</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDef_ShippingError" />
+    </bpmn:boundaryEvent>
+
+    <!-- Cancel Order Service Task (shipping error path) -->
+    <bpmn:serviceTask id="Task_CancelOrderOnShipError" name="Cancel Order">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="cancel-order" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ShipErrorToCancelOrder</bpmn:incoming>
+      <bpmn:outgoing>Flow_CancelShipErrorToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End Event: Order Cancelled (shipping error) -->
+    <bpmn:endEvent id="EndEvent_ShippingFailed" name="Order Cancelled (Shipping Failed)">
+      <bpmn:incoming>Flow_CancelShipErrorToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Message Intermediate Catch Event: Delivery Confirmed -->
+    <bpmn:intermediateCatchEvent id="Event_DeliveryConfirmed" name="Delivery Confirmed">
+      <bpmn:incoming>Flow_ShipToDeliveryWait</bpmn:incoming>
+      <bpmn:outgoing>Flow_DeliveryToEnd</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDef_DeliveryConfirmed" messageRef="Message_DeliveryConfirmed" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End Event: Order Fulfilled -->
+    <bpmn:endEvent id="EndEvent_OrderFulfilled" name="Order Fulfilled">
+      <bpmn:incoming>Flow_DeliveryToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_StartToReserve" sourceRef="StartEvent_OrderPlaced" targetRef="Task_ReserveInventory" />
+    <bpmn:sequenceFlow id="Flow_ReserveToPaymentRequest" sourceRef="Task_ReserveInventory" targetRef="Task_SendPaymentRequest" />
+    <bpmn:sequenceFlow id="Flow_PaymentRequestToGateway" sourceRef="Task_SendPaymentRequest" targetRef="Gateway_PaymentEvent" />
+    <bpmn:sequenceFlow id="Flow_GatewayToPaymentMessage" sourceRef="Gateway_PaymentEvent" targetRef="Event_PaymentReceived" />
+    <bpmn:sequenceFlow id="Flow_GatewayToTimer" sourceRef="Gateway_PaymentEvent" targetRef="Event_PaymentTimeout" />
+    <bpmn:sequenceFlow id="Flow_PaymentToShipOrder" sourceRef="Event_PaymentReceived" targetRef="Task_ShipOrder" />
+    <bpmn:sequenceFlow id="Flow_TimeoutToCancelOrder" sourceRef="Event_PaymentTimeout" targetRef="Task_CancelOrder" />
+    <bpmn:sequenceFlow id="Flow_CancelToEnd" sourceRef="Task_CancelOrder" targetRef="EndEvent_OrderCancelled" />
+    <bpmn:sequenceFlow id="Flow_ShipToDeliveryWait" sourceRef="Task_ShipOrder" targetRef="Event_DeliveryConfirmed" />
+    <bpmn:sequenceFlow id="Flow_ShipErrorToCancelOrder" sourceRef="BoundaryEvent_ShippingError" targetRef="Task_CancelOrderOnShipError" />
+    <bpmn:sequenceFlow id="Flow_CancelShipErrorToEnd" sourceRef="Task_CancelOrderOnShipError" targetRef="EndEvent_ShippingFailed" />
+    <bpmn:sequenceFlow id="Flow_DeliveryToEnd" sourceRef="Event_DeliveryConfirmed" targetRef="EndEvent_OrderFulfilled" />
+
+  </bpmn:process>
+
+  <!-- Message Definitions -->
+  <bpmn:message id="Message_PaymentReceived" name="payment-received">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=orderId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:message id="Message_DeliveryConfirmed" name="delivery-confirmed">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=orderId" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <!-- BPMN Diagram Interchange -->
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="order-fulfillment">
+
+      <!-- Start Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_OrderPlaced" bpmnElement="StartEvent_OrderPlaced">
+        <dc:Bounds x="160" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="145" y="283" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Reserve Inventory -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_ReserveInventory" bpmnElement="Task_ReserveInventory">
+        <dc:Bounds x="260" y="218" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Send Payment Request -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_SendPaymentRequest" bpmnElement="Task_SendPaymentRequest">
+        <dc:Bounds x="420" y="218" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Event-Based Gateway -->
+      <bpmndi:BPMNShape id="_BPMNShape_Gateway_PaymentEvent" bpmnElement="Gateway_PaymentEvent">
+        <dc:Bounds x="585" y="233" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="573" y="209" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Payment Received Message Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_Event_PaymentReceived" bpmnElement="Event_PaymentReceived">
+        <dc:Bounds x="702" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="677" y="283" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- 7 Day Timer Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_Event_PaymentTimeout" bpmnElement="Event_PaymentTimeout">
+        <dc:Bounds x="702" y="370" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="681" y="413" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Cancel Order (timeout) -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_CancelOrder" bpmnElement="Task_CancelOrder">
+        <dc:Bounds x="800" y="348" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End: Order Cancelled -->
+      <bpmndi:BPMNShape id="_BPMNShape_EndEvent_OrderCancelled" bpmnElement="EndEvent_OrderCancelled">
+        <dc:Bounds x="962" y="370" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="939" y="413" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Ship Order -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_ShipOrder" bpmnElement="Task_ShipOrder">
+        <dc:Bounds x="800" y="218" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- Error Boundary on Ship Order -->
+      <bpmndi:BPMNShape id="_BPMNShape_BoundaryEvent_ShippingError" bpmnElement="BoundaryEvent_ShippingError">
+        <dc:Bounds x="862" y="280" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="897" y="303" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Cancel Order (shipping error) -->
+      <bpmndi:BPMNShape id="_BPMNShape_Task_CancelOrderOnShipError" bpmnElement="Task_CancelOrderOnShipError">
+        <dc:Bounds x="930" y="460" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+
+      <!-- End: Shipping Failed -->
+      <bpmndi:BPMNShape id="_BPMNShape_EndEvent_ShippingFailed" bpmnElement="EndEvent_ShippingFailed">
+        <dc:Bounds x="1092" y="482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1068" y="525" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Delivery Confirmed Message Event -->
+      <bpmndi:BPMNShape id="_BPMNShape_Event_DeliveryConfirmed" bpmnElement="Event_DeliveryConfirmed">
+        <dc:Bounds x="962" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="937" y="283" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- End: Order Fulfilled -->
+      <bpmndi:BPMNShape id="_BPMNShape_EndEvent_OrderFulfilled" bpmnElement="EndEvent_OrderFulfilled">
+        <dc:Bounds x="1092" y="240" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1073" y="283" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Sequence Flow Edges -->
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_StartToReserve" bpmnElement="Flow_StartToReserve">
+        <di:waypoint x="196" y="258" />
+        <di:waypoint x="260" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ReserveToPaymentRequest" bpmnElement="Flow_ReserveToPaymentRequest">
+        <di:waypoint x="360" y="258" />
+        <di:waypoint x="420" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_PaymentRequestToGateway" bpmnElement="Flow_PaymentRequestToGateway">
+        <di:waypoint x="520" y="258" />
+        <di:waypoint x="585" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_GatewayToPaymentMessage" bpmnElement="Flow_GatewayToPaymentMessage">
+        <di:waypoint x="635" y="258" />
+        <di:waypoint x="702" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_GatewayToTimer" bpmnElement="Flow_GatewayToTimer">
+        <di:waypoint x="610" y="283" />
+        <di:waypoint x="610" y="388" />
+        <di:waypoint x="702" y="388" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_PaymentToShipOrder" bpmnElement="Flow_PaymentToShipOrder">
+        <di:waypoint x="738" y="258" />
+        <di:waypoint x="800" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_TimeoutToCancelOrder" bpmnElement="Flow_TimeoutToCancelOrder">
+        <di:waypoint x="738" y="388" />
+        <di:waypoint x="800" y="388" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CancelToEnd" bpmnElement="Flow_CancelToEnd">
+        <di:waypoint x="900" y="388" />
+        <di:waypoint x="962" y="388" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ShipToDeliveryWait" bpmnElement="Flow_ShipToDeliveryWait">
+        <di:waypoint x="900" y="258" />
+        <di:waypoint x="962" y="258" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_ShipErrorToCancelOrder" bpmnElement="Flow_ShipErrorToCancelOrder">
+        <di:waypoint x="880" y="316" />
+        <di:waypoint x="880" y="500" />
+        <di:waypoint x="930" y="500" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_CancelShipErrorToEnd" bpmnElement="Flow_CancelShipErrorToEnd">
+        <di:waypoint x="1030" y="500" />
+        <di:waypoint x="1092" y="500" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_Flow_DeliveryToEnd" bpmnElement="Flow_DeliveryToEnd">
+        <di:waypoint x="998" y="258" />
+        <di:waypoint x="1092" y="258" />
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+
+</bpmn:definitions>
