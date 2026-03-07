@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+             id="Definitions_ApprovalRouting"
+             name="Approval Routing"
+             namespace="http://camunda.org/schema/1.0/dmn"
+             modeler:executionPlatform="Camunda Cloud"
+             modeler:executionPlatformVersion="8.9.0">
+  <decision id="approval-routing" name="Approval Routing">
+    <decisionTable id="DecisionTable_1" hitPolicy="FIRST">
+      <input id="Input_1" label="Amount">
+        <inputExpression id="InputExpression_1" typeRef="number">
+          <text>amount</text>
+        </inputExpression>
+      </input>
+      <input id="Input_2" label="Department">
+        <inputExpression id="InputExpression_2" typeRef="string">
+          <text>department</text>
+        </inputExpression>
+      </input>
+      <output id="Output_1" label="Approval Level" name="approvalLevel" typeRef="string"/>
+      <rule id="Rule_1">
+        <description>Small amounts auto-approve</description>
+        <inputEntry id="UnaryTests_1">
+          <text>&lt;= 500</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_2">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_1">
+          <text>"AUTO"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_2">
+        <description>Medium amounts need manager</description>
+        <inputEntry id="UnaryTests_3">
+          <text>[501..1000]</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_4">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_2">
+          <text>"MANAGER"</text>
+        </outputEntry>
+      </rule>
+      <rule id="Rule_3">
+        <description>Large amounts need finance</description>
+        <inputEntry id="UnaryTests_5">
+          <text>&gt; 1000</text>
+        </inputEntry>
+        <inputEntry id="UnaryTests_6">
+          <text></text>
+        </inputEntry>
+        <outputEntry id="LiteralExpression_3">
+          <text>"FINANCE"</text>
+        </outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram>
+      <dmndi:DMNShape dmnElementRef="approval-routing">
+        <dc:Bounds height="80" width="180" x="160" y="100"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

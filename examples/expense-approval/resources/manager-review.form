@@ -1,0 +1,64 @@
+{
+  "components": [
+    {
+      "label": "Employee Name",
+      "type": "textfield",
+      "layout": { "row": "Row_1", "columns": null },
+      "id": "Field_employeeName",
+      "key": "employeeName",
+      "readonly": true
+    },
+    {
+      "label": "Department",
+      "type": "textfield",
+      "layout": { "row": "Row_1", "columns": null },
+      "id": "Field_department",
+      "key": "department",
+      "readonly": true
+    },
+    {
+      "label": "Amount",
+      "type": "number",
+      "layout": { "row": "Row_2", "columns": null },
+      "id": "Field_amount",
+      "key": "amount",
+      "readonly": true
+    },
+    {
+      "label": "Description",
+      "type": "textarea",
+      "layout": { "row": "Row_3", "columns": null },
+      "id": "Field_description",
+      "key": "description",
+      "readonly": true
+    },
+    {
+      "label": "Decision",
+      "type": "select",
+      "layout": { "row": "Row_4", "columns": null },
+      "id": "Field_decision",
+      "key": "managerDecision",
+      "values": [
+        { "label": "Approve", "value": "Approve" },
+        { "label": "Reject", "value": "Reject" }
+      ],
+      "validate": { "required": true }
+    },
+    {
+      "label": "Comments",
+      "type": "textarea",
+      "layout": { "row": "Row_5", "columns": null },
+      "id": "Field_comments",
+      "key": "managerComments"
+    }
+  ],
+  "type": "default",
+  "id": "manager-review-form",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": {
+    "name": "Camunda AI Dev Kit",
+    "version": "1.0.0"
+  },
+  "schemaVersion": 18
+}

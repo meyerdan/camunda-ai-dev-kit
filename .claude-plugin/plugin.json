@@ -1,0 +1,13 @@
+{
+  "name": "camunda-ai-dev-kit",
+  "version": "1.0.0",
+  "description": "Camunda 8 development toolkit for AI coding agents — BPMN, DMN, forms, workers, and deployment via slash commands",
+  "author": {
+    "name": "Camunda",
+    "url": "https://camunda.com"
+  },
+  "homepage": "https://github.com/camunda/camunda-ai-dev-kit",
+  "repository": "https://github.com/camunda/camunda-ai-dev-kit",
+  "license": "Apache-2.0",
+  "keywords": ["camunda", "bpmn", "process-automation", "zeebe", "workflow"]
+}

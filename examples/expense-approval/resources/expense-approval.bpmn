@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_1"
+                  targetNamespace="http://bpmn.io/schema/bpmn"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:process id="expense-approval" name="Expense Approval" isExecutable="true">
+
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Expense Submitted">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- DMN: Determine Approval Level -->
+    <bpmn:businessRuleTask id="Task_DetermineApproval" name="Determine Approval Level">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="approval-routing" resultVariable="approvalLevel"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+
+    <!-- Gateway: Check Approval Level -->
+    <bpmn:exclusiveGateway id="Gateway_ApprovalLevel" name="Approval Level?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Auto</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Manager</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Finance</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- AUTO path: skip straight to notification -->
+    <bpmn:sequenceFlow id="Flow_Auto" name="AUTO" sourceRef="Gateway_ApprovalLevel" targetRef="Gateway_MergeBeforeNotify">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approvalLevel = "AUTO"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- MANAGER path -->
+    <bpmn:sequenceFlow id="Flow_Manager" name="MANAGER" sourceRef="Gateway_ApprovalLevel" targetRef="Task_ManagerReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approvalLevel = "MANAGER"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- FINANCE path -->
+    <bpmn:sequenceFlow id="Flow_Finance" name="FINANCE" sourceRef="Gateway_ApprovalLevel" targetRef="Task_ManagerReview_Finance">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=approvalLevel = "FINANCE"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Manager Review (for MANAGER level) -->
+    <bpmn:userTask id="Task_ManagerReview" name="Manager Review">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="manager-review-form"/>
+        <zeebe:userTask/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Manager</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManagerDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Non-interrupting reminder timer on Manager Review -->
+    <bpmn:boundaryEvent id="BoundaryEvent_Reminder" name="Reminder after 24h" cancelActivity="false" attachedToRef="Task_ManagerReview">
+      <bpmn:outgoing>Flow_Reminder</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Reminder">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <!-- Reminder notification task -->
+    <bpmn:serviceTask id="Task_SendReminder" name="Send Reminder">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="3"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Reminder</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReminderEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_Reminder" name="Reminder Sent">
+      <bpmn:incoming>Flow_ReminderEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Manager Review (for FINANCE level — same form, first approval) -->
+    <bpmn:userTask id="Task_ManagerReview_Finance" name="Manager Review">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="manager-review-form"/>
+        <zeebe:userTask/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Finance</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManagerFinanceDecision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Non-interrupting reminder timer on Finance-path Manager Review -->
+    <bpmn:boundaryEvent id="BoundaryEvent_Reminder2" name="Reminder after 24h" cancelActivity="false" attachedToRef="Task_ManagerReview_Finance">
+      <bpmn:outgoing>Flow_Reminder2</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDef_Reminder2">
+        <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="Task_SendReminder2" name="Send Reminder">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="3"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Reminder2</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReminderEnd2</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_Reminder2" name="Reminder Sent">
+      <bpmn:incoming>Flow_ReminderEnd2</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Gateway: Manager approved on MANAGER path? -->
+    <bpmn:exclusiveGateway id="Gateway_ManagerDecision" name="Manager Decision?">
+      <bpmn:incoming>Flow_ManagerDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManagerApproved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ManagerRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_ManagerApproved" name="Approved" sourceRef="Gateway_ManagerDecision" targetRef="Gateway_MergeBeforeNotify">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=managerDecision = "Approve"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_ManagerRejected" name="Rejected" sourceRef="Gateway_ManagerDecision" targetRef="Gateway_MergeBeforeNotify">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=managerDecision = "Reject"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Gateway: Manager approved on FINANCE path? -->
+    <bpmn:exclusiveGateway id="Gateway_FinanceManagerDecision" name="Manager Decision?">
+      <bpmn:incoming>Flow_ManagerFinanceDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_FinanceManagerApproved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_FinanceManagerRejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_FinanceManagerApproved" name="Approved" sourceRef="Gateway_FinanceManagerDecision" targetRef="Task_FinanceReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=managerDecision = "Approve"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:sequenceFlow id="Flow_FinanceManagerRejected" name="Rejected" sourceRef="Gateway_FinanceManagerDecision" targetRef="Gateway_MergeBeforeNotify">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=managerDecision = "Reject"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <!-- Finance Review user task -->
+    <bpmn:userTask id="Task_FinanceReview" name="Finance Review">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formId="manager-review-form"/>
+        <zeebe:userTask/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_FinanceManagerApproved</bpmn:incoming>
+      <bpmn:outgoing>Flow_FinanceReviewDone</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:sequenceFlow id="Flow_FinanceReviewDone" sourceRef="Task_FinanceReview" targetRef="Gateway_MergeBeforeNotify"/>
+
+    <!-- Merge gateway before notification -->
+    <bpmn:exclusiveGateway id="Gateway_MergeBeforeNotify">
+      <bpmn:incoming>Flow_Auto</bpmn:incoming>
+      <bpmn:incoming>Flow_ManagerApproved</bpmn:incoming>
+      <bpmn:incoming>Flow_ManagerRejected</bpmn:incoming>
+      <bpmn:incoming>Flow_FinanceManagerRejected</bpmn:incoming>
+      <bpmn:incoming>Flow_FinanceReviewDone</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToNotify</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Send Notification service task -->
+    <bpmn:serviceTask id="Task_SendNotification" name="Send Notification">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="send-notification" retries="3"/>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToNotify</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Error boundary on notification -->
+    <bpmn:boundaryEvent id="BoundaryEvent_NotifyError" name="Notification Failed" attachedToRef="Task_SendNotification">
+      <bpmn:outgoing>Flow_ErrorEnd</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_Notify"/>
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="EndEvent_Error" name="Notification Error">
+      <bpmn:incoming>Flow_ErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End -->
+    <bpmn:endEvent id="EndEvent_1" name="Expense Processed">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Task_DetermineApproval"/>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_DetermineApproval" targetRef="Gateway_ApprovalLevel"/>
+    <bpmn:sequenceFlow id="Flow_ManagerDecision" sourceRef="Task_ManagerReview" targetRef="Gateway_ManagerDecision"/>
+    <bpmn:sequenceFlow id="Flow_ManagerFinanceDecision" sourceRef="Task_ManagerReview_Finance" targetRef="Gateway_FinanceManagerDecision"/>
+    <bpmn:sequenceFlow id="Flow_Reminder" sourceRef="BoundaryEvent_Reminder" targetRef="Task_SendReminder"/>
+    <bpmn:sequenceFlow id="Flow_ReminderEnd" sourceRef="Task_SendReminder" targetRef="EndEvent_Reminder"/>
+    <bpmn:sequenceFlow id="Flow_Reminder2" sourceRef="BoundaryEvent_Reminder2" targetRef="Task_SendReminder2"/>
+    <bpmn:sequenceFlow id="Flow_ReminderEnd2" sourceRef="Task_SendReminder2" targetRef="EndEvent_Reminder2"/>
+    <bpmn:sequenceFlow id="Flow_ToNotify" sourceRef="Gateway_MergeBeforeNotify" targetRef="Task_SendNotification"/>
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Task_SendNotification" targetRef="EndEvent_1"/>
+    <bpmn:sequenceFlow id="Flow_ErrorEnd" sourceRef="BoundaryEvent_NotifyError" targetRef="EndEvent_Error"/>
+
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="expense-approval">
+
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="332" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_DetermineApproval_di" bpmnElement="Task_DetermineApproval">
+        <dc:Bounds x="240" y="310" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_ApprovalLevel_di" bpmnElement="Gateway_ApprovalLevel" isMarkerVisible="true">
+        <dc:Bounds x="395" y="325" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+
+      <!-- AUTO path (top) -->
+      <bpmndi:BPMNShape id="Gateway_MergeBeforeNotify_di" bpmnElement="Gateway_MergeBeforeNotify" isMarkerVisible="true">
+        <dc:Bounds x="895" y="325" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+
+      <!-- MANAGER path (middle) -->
+      <bpmndi:BPMNShape id="Task_ManagerReview_di" bpmnElement="Task_ManagerReview">
+        <dc:Bounds x="510" y="310" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BoundaryEvent_Reminder_di" bpmnElement="BoundaryEvent_Reminder">
+        <dc:Bounds x="542" y="372" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_SendReminder_di" bpmnElement="Task_SendReminder">
+        <dc:Bounds x="510" y="440" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_Reminder_di" bpmnElement="EndEvent_Reminder">
+        <dc:Bounds x="652" y="462" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_ManagerDecision_di" bpmnElement="Gateway_ManagerDecision" isMarkerVisible="true">
+        <dc:Bounds x="665" y="325" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+
+      <!-- FINANCE path (bottom) -->
+      <bpmndi:BPMNShape id="Task_ManagerReview_Finance_di" bpmnElement="Task_ManagerReview_Finance">
+        <dc:Bounds x="510" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BoundaryEvent_Reminder2_di" bpmnElement="BoundaryEvent_Reminder2">
+        <dc:Bounds x="542" y="142" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_SendReminder2_di" bpmnElement="Task_SendReminder2">
+        <dc:Bounds x="510" y="50" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_Reminder2_di" bpmnElement="EndEvent_Reminder2">
+        <dc:Bounds x="652" y="72" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_FinanceManagerDecision_di" bpmnElement="Gateway_FinanceManagerDecision" isMarkerVisible="true">
+        <dc:Bounds x="665" y="175" width="50" height="50"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Task_FinanceReview_di" bpmnElement="Task_FinanceReview">
+        <dc:Bounds x="770" y="160" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <!-- Notification -->
+      <bpmndi:BPMNShape id="Task_SendNotification_di" bpmnElement="Task_SendNotification">
+        <dc:Bounds x="1000" y="310" width="100" height="80"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BoundaryEvent_NotifyError_di" bpmnElement="BoundaryEvent_NotifyError">
+        <dc:Bounds x="1032" y="372" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_Error_di" bpmnElement="EndEvent_Error">
+        <dc:Bounds x="1032" y="442" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1152" y="332" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+
+      <!-- Edges -->
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="350"/>
+        <di:waypoint x="240" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_2_di" bpmnElement="Flow_2">
+        <di:waypoint x="340" y="350"/>
+        <di:waypoint x="395" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Auto_di" bpmnElement="Flow_Auto">
+        <di:waypoint x="445" y="350"/>
+        <di:waypoint x="895" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Manager_di" bpmnElement="Flow_Manager">
+        <di:waypoint x="420" y="375"/>
+        <di:waypoint x="420" y="350"/>
+        <di:waypoint x="510" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Finance_di" bpmnElement="Flow_Finance">
+        <di:waypoint x="420" y="325"/>
+        <di:waypoint x="420" y="200"/>
+        <di:waypoint x="510" y="200"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ManagerDecision_di" bpmnElement="Flow_ManagerDecision">
+        <di:waypoint x="610" y="350"/>
+        <di:waypoint x="665" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ManagerApproved_di" bpmnElement="Flow_ManagerApproved">
+        <di:waypoint x="715" y="350"/>
+        <di:waypoint x="895" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ManagerRejected_di" bpmnElement="Flow_ManagerRejected">
+        <di:waypoint x="690" y="375"/>
+        <di:waypoint x="690" y="420"/>
+        <di:waypoint x="920" y="420"/>
+        <di:waypoint x="920" y="375"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ManagerFinanceDecision_di" bpmnElement="Flow_ManagerFinanceDecision">
+        <di:waypoint x="610" y="200"/>
+        <di:waypoint x="665" y="200"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_FinanceManagerApproved_di" bpmnElement="Flow_FinanceManagerApproved">
+        <di:waypoint x="715" y="200"/>
+        <di:waypoint x="770" y="200"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_FinanceManagerRejected_di" bpmnElement="Flow_FinanceManagerRejected">
+        <di:waypoint x="690" y="225"/>
+        <di:waypoint x="690" y="280"/>
+        <di:waypoint x="920" y="280"/>
+        <di:waypoint x="920" y="325"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_FinanceReviewDone_di" bpmnElement="Flow_FinanceReviewDone">
+        <di:waypoint x="870" y="200"/>
+        <di:waypoint x="920" y="200"/>
+        <di:waypoint x="920" y="325"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Reminder_di" bpmnElement="Flow_Reminder">
+        <di:waypoint x="560" y="408"/>
+        <di:waypoint x="560" y="440"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ReminderEnd_di" bpmnElement="Flow_ReminderEnd">
+        <di:waypoint x="610" y="480"/>
+        <di:waypoint x="652" y="480"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Reminder2_di" bpmnElement="Flow_Reminder2">
+        <di:waypoint x="560" y="142"/>
+        <di:waypoint x="560" y="130"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ReminderEnd2_di" bpmnElement="Flow_ReminderEnd2">
+        <di:waypoint x="610" y="90"/>
+        <di:waypoint x="652" y="90"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToNotify_di" bpmnElement="Flow_ToNotify">
+        <di:waypoint x="945" y="350"/>
+        <di:waypoint x="1000" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
+        <di:waypoint x="1100" y="350"/>
+        <di:waypoint x="1152" y="350"/>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ErrorEnd_di" bpmnElement="Flow_ErrorEnd">
+        <di:waypoint x="1050" y="408"/>
+        <di:waypoint x="1050" y="442"/>
+      </bpmndi:BPMNEdge>
+
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
