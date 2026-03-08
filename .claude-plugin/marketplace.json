@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "camunda-ai-dev-kit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Camunda 8 development toolkit for AI coding agents",
   "owner": {
     "name": "Camunda",
@@ -12,7 +12,7 @@
       "name": "camunda-ai-dev-kit",
       "source": "./",
       "description": "Camunda 8 development toolkit — BPMN, DMN, forms, workers, and deployment via AI-powered skills",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "skills": [
         "./.claude/skills/new-project",
         "./.claude/skills/new-process",
