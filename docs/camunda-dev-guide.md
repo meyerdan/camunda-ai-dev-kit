@@ -103,6 +103,10 @@ An empty `<bpmn:errorEventDefinition/>` on a boundary event catches ANY error (w
 
 Boundary events default to `cancelActivity="true"` (interrupting). For non-interrupting (e.g., reminder timers), explicitly set `cancelActivity="false"`.
 
+### Timer Start Events
+
+Processes with **only** a timer start event cannot be started manually via `createProcessInstance` API or `c8 create pi`. For local development and testing, add a second `<bpmn:startEvent>` (none type) alongside the timer. Both are valid — the timer fires on schedule, the none event allows manual triggering.
+
 ---
 
 ## Connectors (40+ built-in)
@@ -214,7 +218,7 @@ Input targets are **provider-specific** — nested under `provider.<type>.*`. Ex
 | `data.systemPrompt.prompt` | Agent behavior and goal (**FEEL required** — use `="prompt text"`) |
 | `data.userPrompt.prompt` | The user request (**FEEL required** — e.g. `="Handle: " + issue`) |
 | `agentContext` | `=agent.context` — pass back for memory across iterations |
-| `data.memory.storage.type` | `inProcess` (default) |
+| `data.memory.storage.type` | `in-process` (default), `camunda-document`, `custom` — **hyphenated, not camelCase** |
 | `data.memory.contextWindowSize` | Number of messages to retain |
 | `data.limits.maxModelCalls` | Max LLM calls before stopping (safety limit) |
 
@@ -245,6 +249,104 @@ How to set `toolCallResult` depends on the task type:
 - **HTTP/REST connector:** `resultExpression` header → `={toolCallResult: response.body}`
 - **Script task:** `<zeebe:script resultVariable="toolCallResult" .../>`
 - **User task:** output mapping → `<zeebe:output source="=myFormVar" target="toolCallResult"/>`
+
+### Sub-flow Tool Pattern
+
+The agent discovers tools by finding **root elements** in the ad-hoc sub-process (elements with no incoming sequence flows). A sub-process counts as one root element, so everything inside it is hidden from the agent — it's implementation detail.
+
+This enables multi-step tools:
+```
+[sub-process "Send message and wait for reply"]
+  └── Service Task (send) → Sequence Flow → Intermediate Catch Event (wait for callback)
+```
+
+The agent sees one tool. BPMN executes two steps. The sub-process is the tool entry point; the catch event inside has an incoming flow so it's not discovered as a separate tool.
+
+Use this for any tool that needs to:
+- Send a message and wait for an async callback
+- Start an external process and poll for completion
+- Make a request, wait for human approval, then continue
+
+### Webhook Connector in Agent Tools
+
+Use `io.camunda:webhook:1` as an intermediate catch event inside a sub-flow tool. This enables tools that send a request and wait for an async reply via HTTP callback.
+
+```xml
+<bpmn:intermediateCatchEvent id="WaitForReply" name="Wait for reply">
+  <bpmn:extensionElements>
+    <zeebe:taskDefinition type="io.camunda:webhook:1" />
+    <zeebe:properties>
+      <zeebe:property name="inbound.type" value="io.camunda:webhook:1" />
+      <zeebe:property name="inbound.context" value="my-webhook-path" />
+      <zeebe:property name="inbound.shouldValidateHmac" value="disabled" />
+      <zeebe:property name="correlationKeyExpression" value="=request.body.correlationKey" />
+      <zeebe:property name="resultExpression" value="={toolCallResult: request.body.text}" />
+    </zeebe:properties>
+  </bpmn:extensionElements>
+  <bpmn:messageEventDefinition>
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=myCorrelationKeyVariable" />
+    </bpmn:extensionElements>
+  </bpmn:messageEventDefinition>
+</bpmn:intermediateCatchEvent>
+```
+
+Key points:
+- The endpoint is auto-created at `http://<connectors-host>/inbound/<context-path>`
+- `correlationKeyExpression` extracts the key from the incoming request body
+- `correlationKey` on the subscription references the process variable to match against
+- `resultExpression` **must** wrap in `toolCallResult` for the agent to receive the result
+- Set `inbound.shouldValidateHmac` to `disabled` for local dev; enable for production
+
+### Correlation Key Uniqueness
+
+When an agent tool sends a message and waits for an async reply, the correlation key must be **unique per tool invocation** — not per process instance, not static.
+
+Pattern:
+```javascript
+// In the send-message worker:
+const replyCorrelationKey = `${chatId}-${crypto.randomUUID()}`;
+// Send key alongside the message to the external system
+// Return key to the process so the webhook can correlate
+job.complete({ replyCorrelationKey });
+```
+
+The webhook subscriber references this variable: `correlationKey="=replyCorrelationKey"`. When the external system replies, it includes the key in the request body. The webhook extracts it via `correlationKeyExpression="=request.body.correlationKey"` and matches it to the waiting subscription.
+
+Why not static keys: Zeebe picks randomly among matching subscriptions. With static keys, two concurrent instances create two subscriptions on the same key — replies go to the wrong one with no error.
+
+### Document Store for Large Data
+
+Process variables work well for small data (< ~100KB). For larger payloads (API responses, file contents), use the Camunda document store:
+
+```javascript
+// Upload (in a worker)
+const docRef = await uploadDocument(largeData, 'my-data.json');
+job.complete({ myDataRef: docRef }); // Only the small reference is stored
+
+// Download (in a downstream worker)
+const data = await downloadDocument(variables.myDataRef);
+```
+
+Pattern: Store large raw data as documents, pass references as variables. When a downstream task needs only a small subset, that subset can be a regular variable.
+
+The document store REST API is at `http://localhost:8080/v2/documents`. Node.js helpers:
+
+```javascript
+async function uploadDocument(data, fileName) {
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const form = new FormData();
+  form.append('file', blob, fileName);
+  form.append('metadata', JSON.stringify({ fileName }));
+  const res = await fetch(`${ZEEBE_REST}/v2/documents`, { method: 'POST', body: form });
+  return (await res.json());
+}
+
+async function downloadDocument(docRef) {
+  const res = await fetch(`${ZEEBE_REST}/v2/documents/${docRef.documentId}`);
+  return res.json();
+}
+```
 
 ### Secrets for LLM API Keys
 

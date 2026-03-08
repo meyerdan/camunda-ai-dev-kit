@@ -18,6 +18,12 @@ Use the **AI Agent Sub-process** pattern (recommended):
 7. Add `<bpmn:documentation>` to each tool describing what it does
 8. Configure `systemPrompt`, `userPrompt`, `modelProvider`, and `authentication.apiKey` (`{{secrets.KEY_NAME}}`)
 
+Tools can also be **sub-processes** for multi-step async patterns:
+- Put a service task (action) followed by a catch event (wait) inside a sub-process
+- The sub-process is the tool entry point; inner steps are hidden from the agent
+- Use this for send+wait, request+callback, or any tool needing async interaction
+- See the "Sub-flow Tool Pattern" section in camunda-dev-guide.md
+
 For non-REST connectors as tools, look up their task type and input targets via the Camunda Docs MCP tool.
 
 Save to resources/. Deploy with c8ctl.

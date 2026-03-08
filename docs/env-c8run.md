@@ -35,3 +35,18 @@ camunda:
 ```
 
 REST connectors can reach `http://localhost:*` directly.
+
+### Connector Secrets
+
+C8 Run's connector runtime exposes **all environment variables** as connector secrets by default (no prefix needed). `{{secrets.OPENAI_API_KEY}}` resolves to the env var `OPENAI_API_KEY`.
+
+**Important:** The env var must be in the connector runtime's process environment. If you restart C8 Run, ensure the shell has the var loaded (e.g., `source ~/.zprofile` first, or add to `~/.zshrc`). Vars set only in a Node.js `.env` file or in `connectors-application.properties` as Spring properties are **not** visible as connector secrets — only OS environment variables work.
+
+The `CAMUNDA_CONNECTOR_SECRET_` prefix does **not** work by default. All env vars are exposed as secrets without any prefix.
+
+### Known Issues
+
+| Version | Issue | Workaround |
+|---------|-------|------------|
+| 8.9.0-alpha4 | Webhook connector version conflicts: redeploying BPMN with webhooks creates a new version but the old connector instance stays active and intercepts requests | Restart C8 Run after every deploy. Fixed in alpha5 (PR #6056). |
+| 8.9.0-alpha1 | "Text cannot be null or empty" on AI Agent connector when LLM returns tool calls without text content | Upgrade to alpha2+ which includes fix (PR #4828). |

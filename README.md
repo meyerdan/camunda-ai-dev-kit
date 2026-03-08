@@ -49,7 +49,7 @@ docs/
   lang-java.md              — Java/Spring Boot worker SDK
 templates/CLAUDE.md         — project CLAUDE.md template
 tools/camunda-viewer/       — local file viewer (BPMN, DMN, Forms)
-examples/                   — 5 working examples (expense-approval, order-fulfillment, batch-processor, hiring-pipeline, customer-support-agent)
+examples/                   — 6 working examples (expense-approval, order-fulfillment, batch-processor, hiring-pipeline, customer-support-agent, async-chatbot-agent)
 ```
 
 ## Design Principles

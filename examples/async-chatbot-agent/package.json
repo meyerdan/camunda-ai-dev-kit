@@ -1,0 +1,11 @@
+{
+  "name": "async-chatbot-agent",
+  "version": "1.0.0",
+  "description": "Async chatbot agent example with webhook sub-flow tool",
+  "scripts": {
+    "start": "node workers/chat-server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="camunda-ai-dev-kit" exporterVersion="1.1.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:process id="async-chatbot" name="Async Chatbot Agent" isExecutable="true">
+    <bpmn:startEvent id="Start" name="Question received">
+      <bpmn:outgoing>Flow_ToAgent</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- AI Agent ad-hoc sub-process with two tools:
+         1. SendChatMessage (sub-process: send + webhook wait) - async sub-flow tool
+         2. LookupKnowledge (service task: REST GET) - sync tool -->
+    <bpmn:adHocSubProcess id="AgentTools" name="Chatbot Agent">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda.agenticai:aiagent-job-worker:1" retries="3" />
+        <zeebe:adHoc outputCollection="toolCallResults" outputElement="={&#10;  id: toolCall._meta.id,&#10;  name: toolCall._meta.name,&#10;  content: toolCallResult&#10;}" />
+        <zeebe:ioMapping>
+          <zeebe:input source="openai" target="provider.type" />
+          <zeebe:input source="{{secrets.OPENAI_API_KEY}}" target="provider.openai.authentication.apiKey" />
+          <zeebe:input source="gpt-4o" target="provider.openai.model.model" />
+          <zeebe:input source="4096" target="provider.openai.model.parameters.maxTokens" />
+          <zeebe:input source="0.3" target="provider.openai.model.parameters.temperature" />
+          <zeebe:input source="=&quot;You are a helpful chatbot assistant. You have two tools:
+1. Send chat message — sends a message to an external chat system and waits for a reply. Use this for conversational exchanges.
+2. Look up knowledge base — queries a local knowledge base for factual information about BPMN, DMN, Camunda, and Zeebe. Use this for quick factual lookups.
+
+Answer the user's question using the appropriate tool(s). Be concise and helpful.&quot;" target="data.systemPrompt.prompt" />
+          <zeebe:input source="=topic" target="data.userPrompt.prompt" />
+          <zeebe:input source="=agent.context" target="agentContext" />
+        </zeebe:ioMapping>
+        <zeebe:taskHeaders>
+          <zeebe:header key="resultVariable" value="agent" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAgent</bpmn:incoming>
+      <bpmn:outgoing>Flow_AgentDone</bpmn:outgoing>
+
+      <!-- TOOL 1: Send Chat Message (sub-flow: send + wait for webhook reply)
+           This is a sub-process so the agent sees ONE tool, but BPMN runs TWO steps.
+           The sub-process is the root element (no incoming flows) so the agent discovers it.
+           The webhook catch event INSIDE has an incoming flow, so it's hidden from tool discovery. -->
+      <bpmn:subProcess id="SendChatMessage" name="Send chat message">
+        <bpmn:documentation>Send a message to the external chat system and wait for a reply. Use this for conversational exchanges. The message parameter is the text to send.</bpmn:documentation>
+        <bpmn:startEvent id="SubStart">
+          <bpmn:outgoing>Flow_ToSend</bpmn:outgoing>
+        </bpmn:startEvent>
+
+        <!-- Step 1: Send the message via REST POST -->
+        <bpmn:serviceTask id="SendMessage" name="Send message">
+          <bpmn:extensionElements>
+            <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
+            <zeebe:ioMapping>
+              <zeebe:input source="noAuth" target="authentication.type" />
+              <zeebe:input source="POST" target="method" />
+              <zeebe:input source="http://localhost:3002/api/chat/send" target="url" />
+              <zeebe:input source="={&#10;  &quot;message&quot;: fromAi(toolCall.message, &quot;The message text to send to the chat&quot;, &quot;string&quot;),&#10;  &quot;chatId&quot;: chatId,&#10;  &quot;correlationKey&quot;: chatId + &quot;-&quot; + string(now())&#10;}" target="body" />
+              <zeebe:input source="20" target="connectionTimeoutInSeconds" />
+            </zeebe:ioMapping>
+            <zeebe:taskHeaders>
+              <zeebe:header key="resultExpression" value="={replyCorrelationKey: response.body.correlationKey}" />
+              <zeebe:header key="retryBackoff" value="PT0S" />
+            </zeebe:taskHeaders>
+          </bpmn:extensionElements>
+          <bpmn:incoming>Flow_ToSend</bpmn:incoming>
+          <bpmn:outgoing>Flow_ToWait</bpmn:outgoing>
+        </bpmn:serviceTask>
+
+        <!-- Step 2: Wait for the async reply via webhook -->
+        <bpmn:intermediateCatchEvent id="WaitForReply" name="Wait for reply">
+          <bpmn:extensionElements>
+            <zeebe:taskDefinition type="io.camunda:webhook:1" />
+            <zeebe:properties>
+              <zeebe:property name="inbound.type" value="io.camunda:webhook:1" />
+              <zeebe:property name="inbound.context" value="chat-reply" />
+              <zeebe:property name="inbound.shouldValidateHmac" value="disabled" />
+              <zeebe:property name="correlationKeyExpression" value="=request.body.correlationKey" />
+              <zeebe:property name="resultExpression" value="={toolCallResult: request.body.text}" />
+            </zeebe:properties>
+          </bpmn:extensionElements>
+          <bpmn:incoming>Flow_ToWait</bpmn:incoming>
+          <bpmn:outgoing>Flow_ToSubEnd</bpmn:outgoing>
+          <bpmn:messageEventDefinition id="MsgDef_Reply">
+            <bpmn:extensionElements>
+              <zeebe:subscription correlationKey="=replyCorrelationKey" />
+            </bpmn:extensionElements>
+          </bpmn:messageEventDefinition>
+        </bpmn:intermediateCatchEvent>
+
+        <bpmn:endEvent id="SubEnd">
+          <bpmn:incoming>Flow_ToSubEnd</bpmn:incoming>
+        </bpmn:endEvent>
+
+        <bpmn:sequenceFlow id="Flow_ToSend" sourceRef="SubStart" targetRef="SendMessage" />
+        <bpmn:sequenceFlow id="Flow_ToWait" sourceRef="SendMessage" targetRef="WaitForReply" />
+        <bpmn:sequenceFlow id="Flow_ToSubEnd" sourceRef="WaitForReply" targetRef="SubEnd" />
+      </bpmn:subProcess>
+
+      <!-- TOOL 2: Look up Knowledge Base (simple sync REST tool) -->
+      <bpmn:serviceTask id="LookupKnowledge" name="Look up knowledge base">
+        <bpmn:documentation>Query the knowledge base for factual information about BPMN, DMN, Camunda, or Zeebe. Returns matching articles.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
+          <zeebe:ioMapping>
+            <zeebe:input source="noAuth" target="authentication.type" />
+            <zeebe:input source="GET" target="method" />
+            <zeebe:input source="http://localhost:3002/api/knowledge" target="url" />
+            <zeebe:input source="={&#10;  &quot;q&quot;: fromAi(toolCall.query, &quot;Search query for the knowledge base&quot;, &quot;string&quot;)&#10;}" target="queryParameters" />
+            <zeebe:input source="10" target="connectionTimeoutInSeconds" />
+          </zeebe:ioMapping>
+          <zeebe:taskHeaders>
+            <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
+            <zeebe:header key="retryBackoff" value="PT0S" />
+          </zeebe:taskHeaders>
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>
+    </bpmn:adHocSubProcess>
+
+    <bpmn:endEvent id="End" name="Question answered">
+      <bpmn:incoming>Flow_AgentDone</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="Flow_ToAgent" sourceRef="Start" targetRef="AgentTools" />
+    <bpmn:sequenceFlow id="Flow_AgentDone" sourceRef="AgentTools" targetRef="End" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="async-chatbot">
+      <bpmndi:BPMNShape id="Start_di" bpmnElement="Start">
+        <dc:Bounds x="152" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="127" y="325" width="86" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AgentTools_di" bpmnElement="AgentTools" isExpanded="true">
+        <dc:Bounds x="250" y="80" width="680" height="440" />
+        <bpmndi:BPMNLabel><dc:Bounds x="540" y="97" width="100" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SendChatMessage_di" bpmnElement="SendChatMessage" isExpanded="true">
+        <dc:Bounds x="280" y="120" width="620" height="200" />
+        <bpmndi:BPMNLabel><dc:Bounds x="530" y="137" width="120" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubStart_di" bpmnElement="SubStart">
+        <dc:Bounds x="310" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SendMessage_di" bpmnElement="SendMessage">
+        <dc:Bounds x="400" y="180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="WaitForReply_di" bpmnElement="WaitForReply">
+        <dc:Bounds x="562" y="202" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="546" y="245" width="68" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SubEnd_di" bpmnElement="SubEnd">
+        <dc:Bounds x="662" y="202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_ToSend_di" bpmnElement="Flow_ToSend">
+        <di:waypoint x="346" y="220" />
+        <di:waypoint x="400" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToWait_di" bpmnElement="Flow_ToWait">
+        <di:waypoint x="500" y="220" />
+        <di:waypoint x="562" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToSubEnd_di" bpmnElement="Flow_ToSubEnd">
+        <di:waypoint x="598" y="220" />
+        <di:waypoint x="662" y="220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="LookupKnowledge_di" bpmnElement="LookupKnowledge">
+        <dc:Bounds x="400" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_di" bpmnElement="End">
+        <dc:Bounds x="992" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="965" y="325" width="90" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_ToAgent_di" bpmnElement="Flow_ToAgent">
+        <di:waypoint x="188" y="300" />
+        <di:waypoint x="250" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AgentDone_di" bpmnElement="Flow_AgentDone">
+        <di:waypoint x="930" y="300" />
+        <di:waypoint x="992" y="300" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
