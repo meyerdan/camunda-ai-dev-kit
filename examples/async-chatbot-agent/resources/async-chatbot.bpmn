@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="camunda-ai-dev-kit" exporterVersion="1.1.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:message id="Message_ChatReply" name="ChatReply">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=replyCorrelationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
   <bpmn:process id="async-chatbot" name="Async Chatbot Agent" isExecutable="true">
     <bpmn:startEvent id="Start" name="Question received">
       <bpmn:outgoing>Flow_ToAgent</bpmn:outgoing>
@@ -77,11 +82,7 @@ Answer the user's question using the appropriate tool(s). Be concise and helpful
           </bpmn:extensionElements>
           <bpmn:incoming>Flow_ToWait</bpmn:incoming>
           <bpmn:outgoing>Flow_ToSubEnd</bpmn:outgoing>
-          <bpmn:messageEventDefinition id="MsgDef_Reply">
-            <bpmn:extensionElements>
-              <zeebe:subscription correlationKey="=replyCorrelationKey" />
-            </bpmn:extensionElements>
-          </bpmn:messageEventDefinition>
+          <bpmn:messageEventDefinition id="MsgDef_Reply" messageRef="Message_ChatReply" />
         </bpmn:intermediateCatchEvent>
 
         <bpmn:endEvent id="SubEnd">
