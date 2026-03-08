@@ -16,6 +16,7 @@
       "skills": [
         "./.claude/skills/new-project",
         "./.claude/skills/new-process",
+        "./.claude/skills/new-agent",
         "./.claude/skills/new-dmn",
         "./.claude/skills/new-form",
         "./.claude/skills/new-worker",
@@ -23,6 +24,7 @@
         "./.claude/skills/start",
         "./.claude/skills/status",
         "./.claude/skills/view-process",
+        "./.claude/skills/setup-environment",
         "./.claude/skills/bpmn-best-practices"
       ]
     }
