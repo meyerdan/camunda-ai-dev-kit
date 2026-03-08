@@ -1,0 +1,46 @@
+{
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.9.0",
+  "exporter": { "name": "Camunda AI Dev Kit", "version": "1.0.0" },
+  "schemaVersion": 18,
+  "id": "escalation-form",
+  "type": "default",
+  "components": [
+    {
+      "type": "textfield",
+      "label": "Customer ID",
+      "key": "customerId",
+      "readonly": true
+    },
+    {
+      "type": "textarea",
+      "label": "Original Issue",
+      "key": "issue",
+      "readonly": true
+    },
+    {
+      "type": "textfield",
+      "label": "Priority",
+      "key": "priority",
+      "readonly": true
+    },
+    {
+      "type": "textarea",
+      "label": "Escalation Reason",
+      "key": "escalationReason",
+      "readonly": true
+    },
+    {
+      "type": "textarea",
+      "label": "Your Response",
+      "key": "humanResponse",
+      "validate": { "required": true }
+    },
+    {
+      "type": "textfield",
+      "label": "Resolution Summary",
+      "key": "resolution",
+      "validate": { "required": true }
+    }
+  ]
+}

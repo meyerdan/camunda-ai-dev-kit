@@ -159,6 +159,101 @@ Secrets (API keys, tokens) are referenced as `{{secrets.MY_SECRET}}` in input va
 
 ---
 
+## Agentic BPMN (AI Agents)
+
+Requires Camunda 8.8+ (C8 Run 8.8+ bundles the Connector Runtime with AI Agent support).
+
+### Ad-hoc Sub-process
+
+The agent's toolbox. Each inner activity is a "tool" the agent can invoke dynamically.
+
+```xml
+<bpmn:adHocSubProcess id="agent-tools" name="Support Agent">
+  <bpmn:extensionElements>
+    <zeebe:taskDefinition type="io.camunda.agenticai:aiagent-job-worker:1" retries="3"/>
+    <zeebe:adHoc outputCollection="toolCallResults"
+      outputElement="={id: toolCall._meta.id, name: toolCall._meta.name, content: toolCallResult}"/>
+    <zeebe:ioMapping>
+      <!-- AI Agent connector inputs go here -->
+    </zeebe:ioMapping>
+    <zeebe:taskHeaders>
+      <zeebe:header key="resultVariable" value="agent"/>
+    </zeebe:taskHeaders>
+  </bpmn:extensionElements>
+  <!-- Tools: root activities with NO incoming sequence flows, NO start/end events -->
+  <bpmn:serviceTask id="MyTool" name="My Tool">...</bpmn:serviceTask>
+</bpmn:adHocSubProcess>
+```
+
+Non-obvious rules:
+- **No start/end events** inside — activities are activated by the agent, not by flow
+- Must contain at least one activity
+- Do **not** set `cancelRemainingInstances` when using `zeebe:taskDefinition` (job worker / AI Agent Sub-process) — the engine rejects this combination
+- Tool name = activity `name` attribute, tool description = `<bpmn:documentation>` element (or name if no docs)
+- Tools can be any activity: service tasks, connectors, script tasks, user tasks, or sub-processes
+
+### AI Agent Connector
+
+**AI Agent Sub-process** (recommended) — applied directly to the ad-hoc sub-process:
+- Task type: `io.camunda.agenticai:aiagent-job-worker:1`
+- Tool calling loop handled internally (no explicit loop in BPMN)
+
+**AI Agent Task** (explicit loop) — applied to a regular service task:
+- Task type: `io.camunda:agentic-ai:1`
+- Requires explicit BPMN loop: agent task → gateway (`=not(agent.toolCalls = null) and count(agent.toolCalls) > 0`) → ad-hoc sub-process (parallel multi-instance) → back to agent task
+
+Input targets are **provider-specific** — nested under `provider.<type>.*`. Example for Anthropic:
+
+| Input target | Description |
+|---|---|
+| `provider.type` | `anthropic`, `openai`, `azureOpenAi`, `googleVertexAi`, `bedrock`, `openaiCompatible` |
+| `provider.anthropic.authentication.apiKey` | API key — use `{{secrets.MY_KEY}}` |
+| `provider.anthropic.model.model` | Model ID (e.g. `claude-sonnet-4-20250514`) |
+| `provider.anthropic.model.parameters.maxTokens` | Max tokens per LLM call |
+| `provider.anthropic.model.parameters.temperature` | Temperature (0-1) |
+| `data.systemPrompt.prompt` | Agent behavior and goal (**FEEL required** — use `="prompt text"`) |
+| `data.userPrompt.prompt` | The user request (**FEEL required** — e.g. `="Handle: " + issue`) |
+| `agentContext` | `=agent.context` — pass back for memory across iterations |
+| `data.memory.storage.type` | `inProcess` (default) |
+| `data.memory.contextWindowSize` | Number of messages to retain |
+| `data.limits.maxModelCalls` | Max LLM calls before stopping (safety limit) |
+
+Other providers follow the same pattern: `provider.openai.authentication.apiKey`, `provider.openai.model.model`, etc.
+
+Result variable: `agent` — contains `agent.context`, `agent.response`, `agent.toolCalls`.
+
+### `fromAi()` — Tool Parameter Definitions
+
+Tags input values as AI-generated so the connector auto-builds JSON Schema tool definitions. Used in `zeebe:input` mappings of tools inside the ad-hoc sub-process.
+
+```
+=fromAi(toolCall.<paramName>, "<description>", "<type>")
+```
+
+Types: `string` (default), `number`, `boolean`, `array`, `object`. The `toolCall.` prefix is required.
+
+Example — REST connector tool with an AI-generated URL parameter:
+```xml
+<zeebe:input source="=&quot;http://localhost:3001/api/customers/&quot; + fromAi(toolCall.customerId, &quot;Customer ID to look up&quot;, &quot;string&quot;)" target="url"/>
+```
+
+### Tool Result Collection (critical)
+
+Every tool **must** write its output to a variable named `toolCallResult`. The `zeebe:adHoc` element on the ad-hoc sub-process collects these and maps them back to tool call IDs for the LLM. Without this, the agent stalls after the first tool call.
+
+How to set `toolCallResult` depends on the task type:
+- **HTTP/REST connector:** `resultExpression` header → `={toolCallResult: response.body}`
+- **Script task:** `<zeebe:script resultVariable="toolCallResult" .../>`
+- **User task:** output mapping → `<zeebe:output source="=myFormVar" target="toolCallResult"/>`
+
+### Secrets for LLM API Keys
+
+Use Camunda secrets: `{{secrets.ANTHROPIC_API_KEY}}`
+- **C8 Run:** `export ANTHROPIC_API_KEY=<key>` (env var before starting C8 Run — C8 Run exposes all env vars as connector secrets by default)
+- **SaaS:** Console → Manage Clusters → Connector Secrets
+
+---
+
 ## DMN Decision Tables
 
 ### Namespace (must be exact):

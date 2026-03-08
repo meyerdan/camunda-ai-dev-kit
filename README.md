@@ -24,6 +24,7 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 ```
 /new-project  — scaffold a new Camunda project
 /new-process  — generate a BPMN process
+/new-agent    — generate an agentic AI process (ad-hoc sub-process + AI Agent connector)
 /new-dmn      — generate a DMN decision table
 /new-form     — generate a Camunda Form
 /new-worker   — generate a job worker
@@ -39,7 +40,7 @@ This auto-configures the Camunda Docs MCP and adds all skills.
 ```
 .claude-plugin/plugin.json  — plugin manifest
 .mcp.json                   — auto-configures Camunda Docs MCP
-.claude/skills/             — 11 skills (slash commands)
+.claude/skills/             — 12 skills (slash commands)
 docs/
   camunda-dev-guide.md      — core Camunda 8 patterns (BPMN, connectors, DMN, forms, CLI)
   env-c8run.md              — C8 Run (local) config
@@ -48,7 +49,7 @@ docs/
   lang-java.md              — Java/Spring Boot worker SDK
 templates/CLAUDE.md         — project CLAUDE.md template
 tools/camunda-viewer/       — local file viewer (BPMN, DMN, Forms)
-examples/                   — 4 working examples (expense-approval, order-fulfillment, batch-processor, hiring-pipeline)
+examples/                   — 5 working examples (expense-approval, order-fulfillment, batch-processor, hiring-pipeline, customer-support-agent)
 ```
 
 ## Design Principles

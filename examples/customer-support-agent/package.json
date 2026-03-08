@@ -1,0 +1,11 @@
+{
+  "name": "customer-support-agent",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start:api": "node workers/customer-api.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

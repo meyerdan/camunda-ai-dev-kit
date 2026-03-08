@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.44.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.9.0">
+  <bpmn:process id="customer-support" name="Customer Support Agent" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_TicketReceived" name="Ticket Received">
+      <bpmn:outgoing>Flow_ToAgent</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:adHocSubProcess id="AgentTools" name="Support Agent">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="io.camunda.agenticai:aiagent-job-worker:1" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="openai" target="provider.type" />
+          <zeebe:input source="{{secrets.OPENAI_API_KEY}}" target="provider.openai.authentication.apiKey" />
+          <zeebe:input source="gpt-4o" target="provider.openai.model.model" />
+          <zeebe:input source="4096" target="provider.openai.model.parameters.maxTokens" />
+          <zeebe:input source="0.3" target="provider.openai.model.parameters.temperature" />
+          <zeebe:input source="=&#34;You are a customer support agent. Use the available tools to look up customer information and order status to resolve the customer&#39;s issue. If you can resolve it, send a response using the Send Response tool. If the issue is complex, sensitive, or you cannot resolve it confidently, escalate to a human agent. Always be professional and thorough.&#34;" target="data.systemPrompt.prompt" />
+          <zeebe:input source="=&#34;Customer &#34; + customerId + &#34; (priority: &#34; + priority + &#34;) reports: &#34; + issue" target="data.userPrompt.prompt" />
+          <zeebe:input source="=agent.context" target="agentContext" />
+        </zeebe:ioMapping>
+        <zeebe:adHoc outputCollection="toolCallResults" outputElement="={&#10;  id: toolCall._meta.id,&#10;  name: toolCall._meta.name,&#10;  content: toolCallResult&#10;}" />
+        <zeebe:taskHeaders>
+          <zeebe:header key="resultVariable" value="agent" />
+        </zeebe:taskHeaders>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAgent</bpmn:incoming>
+      <bpmn:outgoing>Flow_AgentDone</bpmn:outgoing>
+      <bpmn:serviceTask id="LookupCustomer" name="Look up customer">
+        <bpmn:documentation>Look up customer information by their customer ID. Returns name, email, tier, and account creation date.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
+          <zeebe:ioMapping>
+            <zeebe:input source="noAuth" target="authentication.type" />
+            <zeebe:input source="GET" target="method" />
+            <zeebe:input source="=&#34;http://localhost:3001/api/customers/&#34; + fromAi(toolCall.customerId, &#34;The customer ID to look up&#34;, &#34;string&#34;)" target="url" />
+            <zeebe:input source="20" target="connectionTimeoutInSeconds" />
+            <zeebe:input source="20" target="readTimeoutInSeconds" />
+          </zeebe:ioMapping>
+          <zeebe:taskHeaders>
+            <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
+            <zeebe:header key="retryBackoff" value="PT0S" />
+          </zeebe:taskHeaders>
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="CheckOrderStatus" name="Check order status">
+        <bpmn:documentation>Check order status for a customer. Returns a list of orders with their current status and tracking information.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
+          <zeebe:ioMapping>
+            <zeebe:input source="noAuth" target="authentication.type" />
+            <zeebe:input source="GET" target="method" />
+            <zeebe:input source="=&#34;http://localhost:3001/api/orders?customerId=&#34; + fromAi(toolCall.customerId, &#34;The customer ID to check orders for&#34;, &#34;string&#34;)" target="url" />
+            <zeebe:input source="20" target="connectionTimeoutInSeconds" />
+            <zeebe:input source="20" target="readTimeoutInSeconds" />
+          </zeebe:ioMapping>
+          <zeebe:taskHeaders>
+            <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
+            <zeebe:header key="retryBackoff" value="PT0S" />
+          </zeebe:taskHeaders>
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="SendResponse" name="Send response">
+        <bpmn:documentation>Send a support response message to the customer. Use this when you have resolved the issue and want to communicate the resolution.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="io.camunda:http-json:1" retries="1" />
+          <zeebe:ioMapping>
+            <zeebe:input source="noAuth" target="authentication.type" />
+            <zeebe:input source="POST" target="method" />
+            <zeebe:input source="http://localhost:3001/api/responses" target="url" />
+            <zeebe:input source="={&#10;  &#34;customerId&#34;: fromAi(toolCall.customerId, &#34;The customer ID&#34;, &#34;string&#34;),&#10;  &#34;message&#34;: fromAi(toolCall.message, &#34;The support response message to send to the customer&#34;, &#34;string&#34;)&#10;}" target="body" />
+            <zeebe:input source="20" target="connectionTimeoutInSeconds" />
+            <zeebe:input source="20" target="readTimeoutInSeconds" />
+          </zeebe:ioMapping>
+          <zeebe:taskHeaders>
+            <zeebe:header key="resultExpression" value="={toolCallResult: response.body}" />
+            <zeebe:header key="retryBackoff" value="PT0S" />
+          </zeebe:taskHeaders>
+        </bpmn:extensionElements>
+      </bpmn:serviceTask>
+      <bpmn:userTask id="EscalateToHuman" name="Escalate to human agent">
+        <bpmn:documentation>Escalate the support ticket to a human agent for manual review. Use this for complex, sensitive, or unresolvable issues. The human agent will review the ticket and provide a response.</bpmn:documentation>
+        <bpmn:extensionElements>
+          <zeebe:formDefinition formId="escalation-form" />
+          <zeebe:userTask />
+          <zeebe:ioMapping>
+            <zeebe:input source="=fromAi(toolCall.escalationReason, &#34;The reason for escalating to a human agent&#34;, &#34;string&#34;)" target="escalationReason" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+      </bpmn:userTask>
+    </bpmn:adHocSubProcess>
+    <bpmn:boundaryEvent id="BoundaryEvent_AgentError" name="Agent Error" attachedToRef="AgentTools">
+      <bpmn:outgoing>Flow_ToErrorEnd</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_Agent" />
+    </bpmn:boundaryEvent>
+    <bpmn:endEvent id="EndEvent_Resolved" name="Ticket Resolved">
+      <bpmn:incoming>Flow_AgentDone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_AgentError" name="Agent Error">
+      <bpmn:incoming>Flow_ToErrorEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToAgent" sourceRef="StartEvent_TicketReceived" targetRef="AgentTools" />
+    <bpmn:sequenceFlow id="Flow_AgentDone" sourceRef="AgentTools" targetRef="EndEvent_Resolved" />
+    <bpmn:sequenceFlow id="Flow_ToErrorEnd" sourceRef="BoundaryEvent_AgentError" targetRef="EndEvent_AgentError" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="customer-support">
+      <bpmndi:BPMNShape id="StartEvent_TicketReceived_di" bpmnElement="StartEvent_TicketReceived">
+        <dc:Bounds x="152" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="131" y="268" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="AgentTools_di" bpmnElement="AgentTools" isExpanded="true">
+        <dc:Bounds x="250" y="80" width="680" height="340" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="LookupCustomer_di" bpmnElement="LookupCustomer">
+        <dc:Bounds x="290" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="CheckOrderStatus_di" bpmnElement="CheckOrderStatus">
+        <dc:Bounds x="440" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="SendResponse_di" bpmnElement="SendResponse">
+        <dc:Bounds x="590" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EscalateToHuman_di" bpmnElement="EscalateToHuman">
+        <dc:Bounds x="740" y="120" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Resolved_di" bpmnElement="EndEvent_Resolved">
+        <dc:Bounds x="992" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="971" y="268" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_AgentError_di" bpmnElement="EndEvent_AgentError">
+        <dc:Bounds x="682" y="472" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="672" y="508" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_AgentError_di" bpmnElement="BoundaryEvent_AgentError">
+        <dc:Bounds x="582" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="572" y="438" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_ToAgent_di" bpmnElement="Flow_ToAgent">
+        <di:waypoint x="188" y="250" />
+        <di:waypoint x="250" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AgentDone_di" bpmnElement="Flow_AgentDone">
+        <di:waypoint x="930" y="250" />
+        <di:waypoint x="992" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToErrorEnd_di" bpmnElement="Flow_ToErrorEnd">
+        <di:waypoint x="600" y="438" />
+        <di:waypoint x="600" y="490" />
+        <di:waypoint x="682" y="490" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

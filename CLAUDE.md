@@ -8,7 +8,7 @@ Before doing any Camunda work, read `docs/camunda-dev-guide.md` — it contains 
 - `docs/lang-nodejs.md` / `docs/lang-java.md` — worker SDK patterns
 
 ## Skills
-Use `/new-project`, `/new-process`, `/new-dmn`, `/new-form`, `/new-worker`, `/deploy`, `/start`, `/status`, `/view-process`, `/setup-environment`.
+Use `/new-project`, `/new-process`, `/new-agent`, `/new-dmn`, `/new-form`, `/new-worker`, `/deploy`, `/start`, `/status`, `/view-process`, `/setup-environment`.
 
 ## Tools
 - `c8ctl` (`c8`) — Camunda CLI for deploy, start, watch, status
